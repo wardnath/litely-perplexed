@@ -1,48 +1,46 @@
 version: '3.8'
 
 services:
-  searxng:
-    image: searxng/searxng:latest
-    container_name: searxng
-    ports:
-      - "19482:8080"
-    volumes:
-      - ./searxng:/etc/searxng:rw
-    environment:
-      - SEARXNG_BASE_URL=http://localhost:8080/
-    restart: unless-stopped
-
   backend:
-    build: ./backend
-    container_name: embedding-search-backend
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-yourusername}/litely-perplexed-backend:${VERSION:-latest}
+    container_name: litely-perplexed-backend
     ports:
-      - "27341:8000"
+      - "${BACKEND_PORT:-8000}:8000"
+      - "${SEARXNG_PORT:-8080}:8080"
     volumes:
-      - ./data:/data
-      - ./backend:/app
+      - litely-perplexed-data:/data
     environment:
-      - SEARXNG_URL=http://searxng:8080
-      - EMBEDDING_MODEL=all-MiniLM-L6-v2
-      - BM25_WEIGHT=0.5
-      - TOP_K=10
-      - FETCH_RESULTS=20
-      - SUMMARY_SENTENCES=3
-    depends_on:
-      - searxng
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      - BM25_WEIGHT=${BM25_WEIGHT:-0.5}
+      - TOP_K=${TOP_K:-10}
+      - FETCH_RESULTS=${FETCH_RESULTS:-20}
+      - SUMMARY_SENTENCES=${SUMMARY_SENTENCES:-2}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - litely-perplexed
 
   frontend:
-    build: ./frontend
-    container_name: embedding-search-frontend
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-yourusername}/litely-perplexed-frontend:${VERSION:-latest}
+    container_name: litely-perplexed-frontend
     ports:
-      - "23156:5173"
-    volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - litely-perplexed
 
 volumes:
-  data:
-  frontend_node_modules:
+  litely-perplexed-data:
+    name: litely-perplexed-data
+
+networks:
+  litely-perplexed:
+    driver: bridge

@@ -1,0 +1,92 @@
+FROM python:3.11-slim AS backend-builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download spacy model
+RUN python -m spacy download en_core_web_sm
+
+# Copy backend code
+COPY . .
+
+# Production image
+FROM python:3.11-slim
+
+# Install runtime dependencies + SearXNG requirements
+RUN apt-get update && apt-get install -y \
+    python3-dev python3-babel python3-venv \
+    uwsgi uwsgi-plugin-python3 \
+    git build-essential libxslt-dev zlib1g-dev libffi-dev libssl-dev \
+    curl sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy backend from builder
+COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
+COPY --from=backend-builder /app /app
+
+# Create SearXNG user
+RUN useradd --shell /bin/bash --system \
+    --home-dir "/usr/local/searxng" \
+    --comment 'Privacy-respecting metasearch engine' \
+    searxng
+
+# Create SearXNG directories
+RUN mkdir -p "/usr/local/searxng" /etc/searxng
+RUN chown -R "searxng:searxng" "/usr/local/searxng" /etc/searxng
+
+# Copy SearXNG configuration
+COPY searxng-config/settings.yml /etc/searxng/settings.yml
+COPY searxng-config/limiter.toml /etc/searxng/limiter.toml
+COPY searxng-config/uwsgi.ini /etc/searxng/uwsgi.ini
+RUN chown -R searxng:searxng /etc/searxng
+
+# Switch to searxng user to install SearXNG
+USER searxng
+
+# Clone and install SearXNG
+RUN git clone "https://github.com/searxng/searxng" \
+    "/usr/local/searxng/searxng-src"
+
+RUN python3 -m venv "/usr/local/searxng/searx-pyenv"
+RUN "/usr/local/searxng/searx-pyenv/bin/pip" install --upgrade pip setuptools wheel pyyaml msgspec
+RUN cd "/usr/local/searxng/searxng-src" && \
+    "/usr/local/searxng/searx-pyenv/bin/pip" install --use-pep517 --no-build-isolation -e .
+
+# Switch back to root
+USER root
+
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh || true
+
+# Allow searxng user to run sudo commands
+RUN echo "searxng ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Create data directory for indexes
+RUN mkdir -p /data/indexes
+
+# Expose ports
+EXPOSE 8000 8080
+
+# Set environment variables
+ENV SEARXNG_URL=http://localhost:8080
+ENV PYTHONUNBUFFERED=1
+
+# Run entrypoint
+CMD ["/app/entrypoint.sh"]
