@@ -1,0 +1,41 @@
+use_default_settings: true
+
+general:
+  instance_name: "Embedding Search SearXNG"
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "change-this-secret-key-in-production"
+  limiter: false
+  image_proxy: true
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  query_in_title: true
+
+enabled_plugins:
+  - 'Basic Calculator'
+  - 'Hostname replace'
+
+engines:
+  - name: google
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: arxiv
+    disabled: false
