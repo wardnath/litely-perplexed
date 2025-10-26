@@ -1,7 +1,13 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 pydantic==2.9.0
 pydantic-settings==2.5.2
+
+# PyTorch CPU-only (must come before other ML libs)
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
 
 # Search & Retrieval
 pyserini==1.2.0
