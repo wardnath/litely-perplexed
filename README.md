@@ -23,7 +23,19 @@ Self-hosted AI-powered search using **SearXNG + BM25 + embeddings + TextRank**. 
 
 ## Quick Start (Production)
 
-Pull and run pre-built images from GitHub Container Registry:
+Single unified image with frontend, backend, and SearXNG:
+
+```bash
+# Pull and run from GitHub Container Registry
+docker run -d \
+  -p 3000:3000 \
+  -p 8080:8080 \
+  -v litely-perplexed-data:/data \
+  --name litely-perplexed \
+  ghcr.io/yourusername/litely-perplexed:latest
+```
+
+Or use docker-compose:
 
 ```bash
 # Download docker-compose.yml
@@ -32,18 +44,18 @@ wget https://raw.githubusercontent.com/yourusername/litely-perplexed/main/docker
 # Set your GitHub username
 export GITHUB_REPOSITORY_OWNER=yourusername
 
-# Start services
+# Start
 docker compose up -d
 ```
 
 Wait ~30 seconds for SearXNG to initialize, then access:
-- **Frontend**: http://localhost:3000
-- **API**: http://localhost:8000/docs
-- **SearXNG**: http://localhost:8080
+- **Web UI**: http://localhost:3000
+- **API**: http://localhost:3000/docs
+- **SearXNG**: http://localhost:8080 (optional)
 
-**Test the API**:
+**Test**:
 ```bash
-curl "http://localhost:8000/search?q=machine+learning&top_k=5"
+curl "http://localhost:3000/search?q=machine+learning&top_k=5"
 ```
 
 ## Development
@@ -137,23 +149,25 @@ SUMMARY_SENTENCES=2    # TextRank summary length
 
 ## Deployment
 
-### Building Custom Images
+### Building Custom Image
 
 ```bash
-# Build backend (includes SearXNG)
-docker build -f backend/Dockerfile.prod -t my-backend:latest ./backend
-
-# Build frontend
-docker build -f frontend/Dockerfile.prod -t my-frontend:latest ./frontend
+# Build unified image (frontend + backend + SearXNG)
+docker build -t my-litely-perplexed:latest .
 ```
 
 ### GitHub Container Registry
 
-Images are automatically built and published on push to `main`:
-- `ghcr.io/yourusername/litely-perplexed-backend:latest`
-- `ghcr.io/yourusername/litely-perplexed-frontend:latest`
+Single unified image is automatically built and published on push to `main`:
+- `ghcr.io/yourusername/litely-perplexed:latest`
 
 Multi-arch support: `linux/amd64`, `linux/arm64`
+
+**What's inside the image:**
+- SearXNG (metasearch engine on port 8080)
+- FastAPI backend (search API)
+- React frontend (web UI)
+- All served from a single container on port 3000
 
 ## Limitations
 
@@ -164,16 +178,17 @@ Multi-arch support: `linux/amd64`, `linux/arm64`
 
 ## Architecture
 
-**All-in-One Backend Container:**
-- SearXNG and FastAPI backend run in single container
-- SearXNG starts in background, backend in foreground
-- Health checks ensure proper startup order
-- Simplified deployment (one pull, one run)
-
-**Multi-Stage Frontend Build:**
-- React app built to static files
-- Served via nginx for performance
-- Optimized caching headers
+**Single Unified Container (like Perplexica):**
+- Frontend, Backend, and SearXNG all in one image
+- Multi-stage Docker build:
+  1. Build React frontend to static files
+  2. Install Python backend + dependencies
+  3. Install SearXNG from source
+- Entrypoint orchestration:
+  1. Start SearXNG in background
+  2. Wait for health check
+  3. Start FastAPI (serves API + static frontend)
+- Simplified deployment: one pull, one run!
 
 ## Acknowledgments
 

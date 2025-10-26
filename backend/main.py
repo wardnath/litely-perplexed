@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from routes import health, search
 
-app = FastAPI(title="Embedding Search API")
+app = FastAPI(title="Litely Perplexed API")
 
 # CORS
 app.add_middleware(
@@ -14,13 +16,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include API routers
 app.include_router(health.router, tags=["health"])
 app.include_router(search.router, tags=["search"])
 
-@app.get("/")
-async def root():
-    return {"message": "Embedding Search API", "docs": "/docs"}
+# Mount static frontend files (if they exist)
+static_dir = Path("/app/public")
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "Litely Perplexed API", "docs": "/docs"}
 
 @app.on_event("shutdown")
 async def shutdown():
