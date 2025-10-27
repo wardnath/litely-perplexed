@@ -1,82 +1,106 @@
-# Embedding-Only Search
+# Litely Perplexed
 
-Self-hosted research tool using **SearXNG + BM25 + embeddings + TextRank**. No LLMs, no GPU required.
+Self-hosted AI-powered search using **SearXNG + BM25 + embeddings + TextRank**. No LLMs, no GPU required.
 
-## Stack
-- **Search**: SearXNG (metasearch)
+[![Docker Build](https://github.com/yourusername/litely-perplexed/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/yourusername/litely-perplexed/actions/workflows/docker-publish.yml)
+
+## Features
+
+✅ **Hybrid Search** - BM25 + semantic embeddings for best results
+✅ **Key Passages** - Semantically relevant 8-word snippets extracted
+✅ **Extractive Summaries** - TextRank TLDR with no hallucinations
+✅ **No LLM/GPU Required** - Pure CPU, runs anywhere
+✅ **Fully Self-Hosted** - Complete privacy, no external APIs
+✅ **Production Ready** - Pre-built Docker images on GHCR
+
+## Tech Stack
+- **Search**: SearXNG (bundled metasearch)
 - **Extraction**: Trafilatura (content extraction)
-- **Retrieval**: BM25 (term frequency) + Sentence-Transformers (semantic)
-- **Summarization**: TextRank (extractive, no hallucinations)
-- **API**: FastAPI (async Python)
+- **Retrieval**: BM25 + Sentence-Transformers (all-MiniLM-L6-v2)
+- **Summarization**: TextRank (extractive, spaCy)
+- **Backend**: FastAPI (async Python)
+- **Frontend**: React + TypeScript + Tailwind
 
-## Quick Start
+## Quick Start (Production)
 
-1. **Start services**:
+Single unified image with frontend, backend, and SearXNG:
+
 ```bash
-docker-compose up -d
+# Pull and run from GitHub Container Registry
+docker run -d \
+  -p 3000:3000 \
+  -p 8080:8080 \
+  -v litely-perplexed-data:/data \
+  --name litely-perplexed \
+  ghcr.io/yourusername/litely-perplexed:latest
 ```
 
-2. **Wait for models to download** (~1 minute on first run)
+Or use docker-compose:
 
-3. **Access the UI**:
-```
-Frontend: http://localhost:23156
-API Docs: http://localhost:27341/docs
-SearXNG:  http://localhost:19482
-```
-
-4. **Test the API**:
 ```bash
-# Simple search
-curl "http://localhost:27341/search?q=quantum%20computing&top_k=5"
+# Download docker-compose.yml
+wget https://raw.githubusercontent.com/yourusername/litely-perplexed/main/docker-compose.yml
 
-# With cluster summary
-curl "http://localhost:27341/search?q=climate%20change&top_k=10&cluster_summary=true"
+# Set your GitHub username
+export GITHUB_REPOSITORY_OWNER=yourusername
 
-# With MMR diversity
-curl "http://localhost:27341/search?q=machine%20learning&use_mmr=true"
+# Start
+docker compose up -d
 ```
 
-5. **Or use the test script**:
+Wait ~30 seconds for SearXNG to initialize, then access:
+- **Web UI**: http://localhost:3000
+- **API**: http://localhost:3000/docs
+- **SearXNG**: http://localhost:8080 (optional)
+
+**Test**:
 ```bash
-cd backend
-python test_api.py
+curl "http://localhost:3000/search?q=machine+learning&top_k=5"
+```
+
+## Development
+
+For local development with hot-reload:
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/litely-perplexed.git
+cd litely-perplexed
+
+# Start dev environment
+docker compose -f docker-compose.dev.yml up -d
+
+# Access dev servers
+# Frontend: http://localhost:23156 (Vite HMR)
+# Backend: http://localhost:27341 (auto-reload)
+# SearXNG: http://localhost:19482
 ```
 
 ## API Endpoints
 
 ### `GET /search`
-Main search endpoint with hybrid ranking and summarization.
+Hybrid search with BM25 + semantic ranking, extractive summarization, and key passage extraction.
 
 **Parameters**:
 - `q` (required): Search query
-- `top_k` (default: 10): Number of results
-- `summarize` (default: true): Generate per-doc summaries
-- `cluster_summary` (default: false): Generate overall summary
-- `use_mmr` (default: false): Use MMR for diversity
+- `top_k` (default: 10): Number of results to return
 
-**Example Response**:
-```json
-{
-  "query": "quantum computing",
-  "cluster_summary": "Quantum computing leverages quantum mechanics...",
-  "results": [
-    {
-      "url": "https://example.com/article",
-      "title": "Introduction to Quantum Computing",
-      "text": "Full article text...",
-      "summary": "Extractive summary of key points...",
-      "bm25_score": 0.85,
-      "semantic_score": 0.92,
-      "hybrid_score": 0.885
-    }
-  ],
-  "total": 10
-}
+**Response Fields**:
+- `original_rank`: Position from SearXNG
+- `final_rank`: Position after hybrid reranking
+- `bm25_score`: Term frequency score (0-1)
+- `semantic_score`: Embedding similarity (0-1)
+- `hybrid_score`: Weighted combination
+- `summary`: 2-sentence TextRank extractive summary
+- `key_passages`: Array of 5 semantically relevant 8-word snippets
+
+**Example**:
+```bash
+curl "http://localhost:8000/search?q=python+programming&top_k=3"
 ```
 
 ### `GET /health`
-Service health check.
+Health check endpoint (returns 200 OK).
 
 ## Pipeline
 
@@ -101,49 +125,49 @@ JSON Response with Citations
 
 ## Configuration
 
-Edit `.env` or `docker-compose.yml` environment variables:
+Create a `.env` file to customize settings:
 
 ```bash
-# Model selection
-EMBEDDING_MODEL=all-MiniLM-L6-v2  # Fast, 384 dims, CPU-friendly
+# Docker Registry (for production)
+GITHUB_REPOSITORY_OWNER=yourusername
+VERSION=latest
 
-# Ranking weights
-BM25_WEIGHT=0.5  # 0.0 = pure semantic, 1.0 = pure BM25
+# Ports
+BACKEND_PORT=8000
+SEARXNG_PORT=8080
+FRONTEND_PORT=3000
 
-# Result counts
-FETCH_RESULTS=20  # Fetch from SearXNG
-TOP_K=10          # Return to user
+# Model (CPU-friendly, no GPU needed)
+EMBEDDING_MODEL=all-MiniLM-L6-v2
 
-# Summarization
-SUMMARY_SENTENCES=3  # Per-document summary length
+# Search Settings
+BM25_WEIGHT=0.5        # 0.0 = pure semantic, 1.0 = pure BM25
+TOP_K=10               # Results to return
+FETCH_RESULTS=20       # Fetch from SearXNG
+SUMMARY_SENTENCES=2    # TextRank summary length
 ```
 
-## Features
+## Deployment
 
-✅ **No LLM required** - Uses classical IR + embeddings
-✅ **No GPU required** - Runs on any CPU
-✅ **No hallucinations** - Extractive summaries only
-✅ **Fast** - Sub-second response times
-✅ **Private** - Fully self-hosted
-✅ **Deterministic** - Same query → same results
-✅ **Transparent** - Scores are interpretable (BM25 + cosine)
-
-## Development
-
-Run locally without Docker:
+### Building Custom Image
 
 ```bash
-# Install dependencies
-cd backend
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
-
-# Start SearXNG separately
-docker run -d -p 8080:8080 searxng/searxng
-
-# Run API
-python main.py
+# Build unified image (frontend + backend + SearXNG)
+docker build -t my-litely-perplexed:latest .
 ```
+
+### GitHub Container Registry
+
+Single unified image is automatically built and published on push to `main`:
+- `ghcr.io/yourusername/litely-perplexed:latest`
+
+Multi-arch support: `linux/amd64`, `linux/arm64`
+
+**What's inside the image:**
+- SearXNG (metasearch engine on port 8080)
+- FastAPI backend (search API)
+- React frontend (web UI)
+- All served from a single container on port 3000
 
 ## Limitations
 
@@ -152,14 +176,23 @@ python main.py
 - **Source-dependent**: Quality limited to what's in search results
 - **No conversational memory**: Each query is independent
 
-## Future Enhancements
+## Architecture
 
-- [ ] Add ColBERT token-level matching
-- [ ] Implement query expansion with WordNet
-- [ ] Add Redis caching for repeated queries
-- [ ] Build simple web UI
-- [ ] Add cross-encoder reranking option
-- [ ] Persistent vector store (pgvector/Qdrant)
+**Single Unified Container (like Perplexica):**
+- Frontend, Backend, and SearXNG all in one image
+- Multi-stage Docker build:
+  1. Build React frontend to static files
+  2. Install Python backend + dependencies
+  3. Install SearXNG from source
+- Entrypoint orchestration:
+  1. Start SearXNG in background
+  2. Wait for health check
+  3. Start FastAPI (serves API + static frontend)
+- Simplified deployment: one pull, one run!
+
+## Acknowledgments
+
+Inspired by [Perplexica](https://github.com/ItzCrazyKns/Perplexica) - check them out for LLM-powered search with conversational AI!
 
 ## License
 

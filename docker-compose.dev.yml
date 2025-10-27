@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "19482:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: embedding-search-backend
+    ports:
+      - "27341:8000"
+    volumes:
+      - ./data:/data
+      - ./backend:/app
+    environment:
+      - SEARXNG_URL=http://searxng:8080
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - BM25_WEIGHT=0.5
+      - TOP_K=10
+      - FETCH_RESULTS=20
+      - SUMMARY_SENTENCES=3
+    depends_on:
+      - searxng
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: embedding-search-frontend
+    ports:
+      - "23156:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  data:
+  frontend_node_modules:
